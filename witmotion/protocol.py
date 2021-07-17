@@ -1,5 +1,6 @@
 import struct
 from datetime import datetime, timezone
+from enum import Enum
 
 G = 9.8
 
@@ -29,7 +30,7 @@ class TimeMessage(ReceiveMessage):
     @classmethod
     def parse(cls, body):
         (year2, month, day, hour, minute, second, millisecond) = struct.unpack(
-            ">BBBBBBH", body
+            "<BBBBBBH", body
         )
         year4 = year2 + 2000
         d = datetime(
@@ -48,31 +49,27 @@ class TimeMessage(ReceiveMessage):
 class AccelerationMessage(ReceiveMessage):
     code = 0x51
 
-    def __init__(self, ax, ay, az, temp_celsius):
-        self.ax = az
-        self.ay = ay
-        self.az = az
+    def __init__(self, a, temp_celsius):
+        self.a = a
         self.temp_celsius = temp_celsius
 
     def __str__(self):
-        return "acceleration message - vec:%s,%s,%s temp_celsius:%s" % (
-            self.ax,
-            self.ay,
-            self.az,
+        return "acceleration message - vec:%s temp_celsius:%s" % (
+            self.a,
             self.temp_celsius,
         )
 
     @classmethod
     def parse(cls, body):
-        (axr, ayr, azr, tempr) = struct.unpack(">HHHH", body)
-        ax = (axr / 32768) * 16 * G
-        ay = (ayr / 32768) * 16 * G
-        az = (azr / 32768) * 16 * G
+        (axr, ayr, azr, tempr) = struct.unpack("<hhhh", body)
+        a = (
+            (axr / 32768) * 16 * G,
+            (ayr / 32768) * 16 * G,
+            (azr / 32768) * 16 * G,
+        )
         temp_celsius = tempr / 100
         return cls(
-            ax=ax,
-            ay=ay,
-            az=az,
+            a=a,
             temp_celsius=temp_celsius,
         )
 
@@ -80,29 +77,27 @@ class AccelerationMessage(ReceiveMessage):
 class AngularVelocityMessage(ReceiveMessage):
     code = 0x52
 
-    def __init__(self, wx, wy, wz, temp_celsius):
-        self.wx = wx
-        self.wy = wy
-        self.wz = wz
+    def __init__(self, w, temp_celsius):
+        self.w = w
         self.temp_celsius = temp_celsius
 
     def __str__(self):
         return "angular velocity message - w:%s temp_celsius:%s" % (
-            (self.wx, self.wy, self.wz),
+            self.w,
             self.temp_celsius,
         )
 
     @classmethod
     def parse(cls, body):
-        (wxr, wyr, wzr, tempr) = struct.unpack(">HHHH", body)
-        wx = (wxr / 32768) * 2000
-        wy = (wyr / 32768) * 2000
-        wz = (wzr / 32768) * 2000
+        (wxr, wyr, wzr, tempr) = struct.unpack("<hhhh", body)
+        w = (
+            (wxr / 32768) * 2000,
+            (wyr / 32768) * 2000,
+            (wzr / 32768) * 2000,
+        )
         temp_celsius = tempr / 100
         return cls(
-            wx=wx,
-            wy=wy,
-            wz=wz,
+            w=w,
             temp_celsius=temp_celsius,
         )
 
@@ -126,7 +121,7 @@ class AngleMessage(ReceiveMessage):
 
     @classmethod
     def parse(cls, body):
-        (rollr, pitchr, yawr, version) = struct.unpack(">HHHH", body)
+        (rollr, pitchr, yawr, version) = struct.unpack("<hhhh", body)
         roll = (rollr / 32768) * 180
         pitch = (pitchr / 32768) * 180
         yaw = (yawr / 32768) * 180
@@ -141,28 +136,23 @@ class AngleMessage(ReceiveMessage):
 class MagneticMessage(ReceiveMessage):
     code = 0x54
 
-    def __init__(self, x, y, z, temp_celsius):
-        self.x = x
-        self.y = y
-        self.z = z
+    def __init__(self, mag, temp_celsius):
+        self.mag = mag
         self.temp_celsius = temp_celsius
 
     def __str__(self):
-        return "magnetic message - x:%s y:%s z:%s temp_celsius:%s" % (
-            self.x,
-            self.y,
-            self.z,
+        return "magnetic message - vec:%s temp_celsius:%s" % (
+            self.mag,
             self.temp_celsius,
         )
 
     @classmethod
     def parse(cls, body):
-        x, y, z, tempr = struct.unpack(">HHHH", body)
+        x, y, z, tempr = struct.unpack("<hhhh", body)
+        mag = (x, y, z)
         temp_celsius = tempr / 100
         return cls(
-            x=x,
-            y=y,
-            z=z,
+            mag=mag,
             temp_celsius=temp_celsius,
         )
 
@@ -178,7 +168,7 @@ class QuaternionMessage(ReceiveMessage):
 
     @classmethod
     def parse(cls, body):
-        qr = struct.unpack(">HHHH", body)
+        qr = struct.unpack("<hhhh", body)
         q = tuple(el / 32768 for el in qr)
         return cls(q=q)
 
@@ -196,5 +186,98 @@ receive_messages = {
 }
 
 
+class CalibrationMode(Enum):
+    none = 0
+    gyro_accel = 1
+    magnetic = 2
+
+
+class ReturnRateSelect(Enum):
+    rate_0_2hz = 0x01
+    rate_0_5hz = 0x02
+    rate_1hz = 0x03
+    rate_2hz = 0x04
+    rate_5hz = 0x05
+    rate_10hz = 0x06
+    rate_20hz = 0x07
+    rate_50hz = 0x08
+    rate_100hz = 0x09
+    rate_125hz = 0x0A
+    rate_200hz = 0x0B
+    rate_single = 0x0C
+    rate_not_output = 0x0D
+
+
+class BaudRateSelect(Enum):
+    baud_4800 = 0x01
+    baud_9600 = 0x02
+    baud_19200 = 0x03
+    baud_38400 = 0x04
+    baud_57600 = 0x05
+    baud_115200 = 0x06
+    baud_230400 = 0x07
+    baud_460800 = 0x08
+    baud_921600 = 0x09
+
+
+class Register(Enum):
+    save = 0x00
+    calsw = 0x01
+    rsw = 0x02
+    rate = 0x03
+    baud = 0x04
+    axoffset = 0x05
+    ayoffset = 0x06
+    azoffset = 0x07
+    gxoffset = 0x08
+    gyoffset = 0x09
+    gzoffset = 0x0A
+    hxoffset = 0x0B
+    hyoffset = 0x0C
+    hzoffset = 0x0D
+    sleep = 0x22
+    direction = 0x23
+    alg = 0x24
+    mmyy = 0x30
+    hhdd = 0x31
+    ssmm = 0x32
+    ms = 0x33
+    ax = 0x34
+    ay = 0x35
+    az = 0x36
+    gx = 0x37
+    gy = 0x38
+    gz = 0x39
+    hx = 0x3A
+    hy = 0x3B
+    hz = 0x3C
+    roll = 0x3D
+    pitch = 0x3E
+    yaw = 0x3F
+    temp = 0x40
+    q0 = 0x51
+    q1 = 0x52
+    q2 = 0x53
+    q3 = 0x54
+    gyro = 0x63
+
+
 class ConfigCommand:
-    pass
+    def __init__(self, register, data):
+        self.register = register
+        self.data = data
+
+    def __str__(self):
+        return "config command - register %s -> data %s" % (
+            self.register.name,
+            self.data,
+        )
+
+    def serialize(self):
+        return struct.pack(
+            "<BBBH",
+            0xFF,
+            0xAA,
+            self.register.value,
+            self.data,
+        )
