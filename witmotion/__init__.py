@@ -2,6 +2,7 @@ import logging
 
 from enum import Enum
 from threading import Thread
+from collections import defaultdict
 
 import serial
 
@@ -53,6 +54,10 @@ class IMU:
         self.should_exit = False
         self.rxthread = Thread(target=self._rxloop)
         self.rxthread.start()
+        self.subscribers = defaultdict(list)
+
+        # State we have received
+        self.q = None
 
     def close(self):
         self.should_exit = True
@@ -66,8 +71,17 @@ class IMU:
             remaining -= len(chunk)
         return buf
 
+    def subscribe(self, callback, cls=None):
+        self.subscribers[cls].append(callback)
+
     def _handle_message(self, msg):
         log.info("message: %s", msg)
+        for cb in self.subscribers[msg.__class__]:
+            cb(msg)
+        for cb in self.subscribers[None]:
+            cb(msg)
+        if isinstance(msg, protocol.QuaternionMessage):
+            self.q = msg.q
 
     def _rxloop(self):
         message_cls = None
@@ -118,3 +132,6 @@ class IMU:
                     msg = message_cls.parse(body)
                     self._handle_message(msg)
                 state = ReceiveState.idle
+
+    def get_quaternion(self):
+        return self.q
