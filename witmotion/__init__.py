@@ -145,7 +145,7 @@ class IMU:
                 otw_checksum = buf[-1]
                 body = buf[:-1]
                 checksum = message_cls.compute_checksum(body)
-                if False and checksum != otw_checksum:
+                if checksum != otw_checksum:
                     log.warning(
                         "invalid checksum: wanted 0x%x, got 0x%x",
                         otw_checksum,
