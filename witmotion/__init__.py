@@ -74,7 +74,11 @@ class IMU:
         self.last_q = None
 
     def close(self):
+        """
+        Close IMU connection and stop background monitoring thread..
+        """
         self.should_exit = True
+        self.rxthread.join()
 
     def _safe_read(self, size):
         buf = bytearray()
@@ -86,6 +90,9 @@ class IMU:
         return buf
 
     def subscribe(self, callback, cls=None):
+        """
+        Subscribe to update messages from the IMU.
+        """
         self.subscribers[cls].append(callback)
 
     def _handle_message(self, msg):
@@ -163,24 +170,52 @@ class IMU:
                 state = ReceiveState.idle
 
     def get_timestamp(self):
+        """
+        Get the last timestamp received from the device. If no timestamp
+        messages have been received, will return `None`.
+        """
         return self.last_timestamp
 
     def get_acceleration(self):
+        """
+        Get the last acceleration vector received from the device. If no
+        acceleration messages have been received, will return `None`.
+        """
         return self.last_a
 
     def get_angular_velocity(self):
+        """
+        Get the last angular velocity state received from the device. If no
+        angular velocity messages have been received, will return `None`.
+        """
         return self.last_w
 
     def get_angle(self):
+        """
+        Get the last angle state received from the device. If no angle messages
+        have been received, will return `None`.
+        """
         return self.last_roll, self.last_pitch, self.last_yaw
 
     def get_magnetic_vector(self):
+        """
+        Get the last magnetic vector received from the device. If no
+        magnetic messages have been received, will return `None`.
+        """
         return self.last_mag
 
     def get_quaternion(self):
+        """
+        Get the last quaternion received from the device. If no quaternion
+        messages have been received, will return `None`.
+        """
         return self.last_q
 
     def save_configuration(self):
+        """
+        Save the currently running configuration to the device's nonvolatile
+        memory.
+        """
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.save,
@@ -189,6 +224,10 @@ class IMU:
         )
 
     def send_command(self, cmd):
+        """
+        Send a command instance to the device. This should generally not be
+        used directly: instead, use higher-level configuration methods.
+        """
         buf = cmd.serialize()
         log.warning("sending config command %s -> %s", cmd, buf.hex())
         nwritten = self.ser.write(buf)
@@ -199,6 +238,11 @@ class IMU:
         time.sleep(0.1)
 
     def send_config_command(self, cmd):
+        """
+        Send a configuration command instance to the device, proceeded by a
+        special configuration sequence. This should generally not be used
+        directly: instead, use higher-level configuration methods.
+        """
         self.send_command(
             protocol.ConfigCommand(
                 register=protocol.Register.unknown_config_cmd,
@@ -208,6 +252,9 @@ class IMU:
         self.send_command(cmd)
 
     def set_default_configuration(self):
+        """
+        Restore the device to factory default configuration.
+        """
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.save,
@@ -216,6 +263,9 @@ class IMU:
         )
 
     def set_calibration_mode(self, mode):
+        """
+        Set the current calibration mode.
+        """
         if mode == protocol.CalibrationMode.none:
             pass
         elif mode == protocol.CalibrationMode.gyro_accel:
@@ -226,6 +276,9 @@ class IMU:
             raise ValueError("invalid calibration mode: %r" % mode)
 
     def set_installation_direction(self, direction):
+        """
+        Set the current installation direction.
+        """
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.direction,
@@ -234,6 +287,10 @@ class IMU:
         )
 
     def toggle_sleep(self):
+        """
+        Toggle device sleep mode. If the device is currently active, it will go
+        to sleep. If the device is current asleep, it will become active.
+        """
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.sleep,
@@ -242,6 +299,10 @@ class IMU:
         )
 
     def set_algorithm_dof(self, n):
+        """
+        Set the currently active sensing algorithm in use on the device: either
+        6-DoF or 9-DoF.
+        """
         assert n in (6, 9)
         self.send_config_command(
             protocol.ConfigCommand(
@@ -251,6 +312,10 @@ class IMU:
         )
 
     def set_gyro_automatic_calibration(self, enabled=True):
+        """
+        Set the current gyro automatic calibration mode: either enabled or
+        disabled.
+        """
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.gyro,
@@ -259,6 +324,10 @@ class IMU:
         )
 
     def set_messages_enabled(self, classes):
+        """
+        Set the output message types enabled on the device. Pass in a set of
+        ReceiveMessage subclasses.
+        """
         mask = 0
         for cls in classes:
             bitshift = cls.code - 0x50
@@ -271,6 +340,9 @@ class IMU:
         )
 
     def set_update_rate(self, rate):
+        """
+        Set the update rate emitted by the device.
+        """
         sel = {
             0.2: protocol.ReturnRateSelect.rate_0_2hz,
             0.5: protocol.ReturnRateSelect.rate_0_5hz,
@@ -294,6 +366,9 @@ class IMU:
         )
 
     def set_baudrate(self, rate):
+        """
+        Set the serial baud rate used by the device.
+        """
         sel = getattr(protocol.BaudRateSelect, "baud_%d" % rate)
         self.send_config_command(
             protocol.ConfigCommand(
@@ -303,10 +378,22 @@ class IMU:
         )
 
     def set_acceleration_bias(self, values):
+        """
+        Set the internal acceleration bias values.
+        """
         x, y, z = values
+        raise NotImplementedError
 
     def set_angular_velocity_bias(self, values):
+        """
+        Set the internal angular velocity bias values.
+        """
         x, y, z = values
+        raise NotImplementedError
 
     def set_magnetic_bias(self, values):
+        """
+        Set the internal magnetic bias values.
+        """
         x, y, z = values
+        raise NotImplementedError
