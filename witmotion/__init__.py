@@ -1,5 +1,6 @@
 import logging
 
+import time
 from enum import Enum
 from threading import Thread
 from collections import defaultdict
@@ -50,7 +51,12 @@ class IMU:
     """
 
     def __init__(self, path="/dev/ttyUSB0", baudrate=9600):
-        self.ser = serial.Serial(path, baudrate=baudrate, timeout=0.1)
+        self.ser = serial.Serial(
+            path, baudrate=baudrate, timeout=0.1, exclusive=True
+        )
+        # self.ser.reset_output_buffer()
+        # self.ser.write(b"\x00" * 5)
+
         self.should_exit = False
         self.rxthread = Thread(target=self._rxloop)
         self.rxthread.start()
@@ -175,18 +181,39 @@ class IMU:
         return self.last_q
 
     def save_configuration(self):
-        pass
+        self.send_config_command(
+            protocol.ConfigCommand(
+                register=protocol.Register.save,
+                data=0,
+            )
+        )
 
-    def send_config_command(self, cmd):
+    def send_command(self, cmd):
         buf = cmd.serialize()
         log.warning("sending config command %s -> %s", cmd, buf.hex())
         nwritten = self.ser.write(buf)
         log.warning("wrote %d bytes", nwritten)
         if nwritten != len(buf):
             log.warning("possible write failure")
+        # The IMU doesn't seem to like to receive commands too fast. :-(
+        time.sleep(0.1)
+
+    def send_config_command(self, cmd):
+        self.send_command(
+            protocol.ConfigCommand(
+                register=protocol.Register.unknown_config_cmd,
+                data=0xB588,
+            )
+        )
+        self.send_command(cmd)
 
     def set_default_configuration(self):
-        pass
+        self.send_config_command(
+            protocol.ConfigCommand(
+                register=protocol.Register.save,
+                data=1,
+            )
+        )
 
     def set_calibration_mode(self, mode):
         if mode == protocol.CalibrationMode.none:
@@ -198,11 +225,11 @@ class IMU:
         else:
             raise ValueError("invalid calibration mode: %r" % mode)
 
-    def set_installation_direction(self, horizontal):
+    def set_installation_direction(self, direction):
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.direction,
-                data=0x00 if horizontal else 0x01,
+                data=direction.value,
             )
         )
 

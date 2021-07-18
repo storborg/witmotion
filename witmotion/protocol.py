@@ -32,11 +32,11 @@ class TimeMessage(ReceiveMessage):
         (year2, month, day, hour, minute, second, millisecond) = struct.unpack(
             "<BBBBBBH", body
         )
-        year4 = year2 + 2000
+        year4 = year2 + 1970
         d = datetime(
             year=year4,
-            month=month,
-            day=day,
+            month=month + 1,
+            day=day + 1,
             hour=hour,
             minute=minute,
             second=second,
@@ -112,11 +112,14 @@ class AngleMessage(ReceiveMessage):
         self.version = version
 
     def __str__(self):
-        return "angle message - roll:%d pitch:%s yaw:%s version:%s" % (
-            self.roll,
-            self.pitch,
-            self.yaw,
-            self.version,
+        return (
+            "angle message - roll:%0.1f pitch:%0.1f yaw:%0.1f version:%s"
+            % (
+                self.roll,
+                self.pitch,
+                self.yaw,
+                self.version,
+            )
         )
 
     @classmethod
@@ -192,6 +195,11 @@ class CalibrationMode(Enum):
     magnetic = 2
 
 
+class InstallationDirection(Enum):
+    horizontal = 0x00
+    vertical = 0x01
+
+
 class ReturnRateSelect(Enum):
     rate_0_2hz = 0x01
     rate_0_5hz = 0x02
@@ -260,6 +268,8 @@ class Register(Enum):
     q2 = 0x53
     q3 = 0x54
     gyro = 0x63
+
+    unknown_config_cmd = 0x69
 
 
 class ConfigCommand:
