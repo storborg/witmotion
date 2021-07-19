@@ -18,11 +18,11 @@ def three_tuple(s):
     parts = s.split(",")
     if len(parts) == 3:
         try:
-            return tuple(float(el) for el in parts)
+            return tuple(int(el) for el in parts)
         except ValueError:
             pass
     raise argparse.ArgumentTypeError(
-        "'%s' is not a valid 3-tuple. Example: 0.2,1.3,5.6" % s
+        "'%s' is not a valid 3-tuple. Example: 22,-7,16" % s
     )
 
 

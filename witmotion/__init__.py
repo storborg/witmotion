@@ -4,10 +4,22 @@ import time
 from enum import Enum
 from threading import Thread
 from collections import defaultdict
+from typing import Optional, Union, Tuple, Set, Type, Callable
 
 import serial
 
 from . import protocol
+from .protocol import (
+    ReceiveMessage,
+    TimeMessage,
+    AccelerationMessage,
+    AngularVelocityMessage,
+    AngleMessage,
+    MagneticMessage,
+    QuaternionMessage,
+    CalibrationMode,
+    InstallationDirection,
+)
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +62,7 @@ class IMU:
     interface.
     """
 
-    def __init__(self, path="/dev/ttyUSB0", baudrate=9600):
+    def __init__(self, path: str = "/dev/ttyUSB0", baudrate: int = 9600):
         self.ser = serial.Serial(
             path, baudrate=baudrate, timeout=0.1, exclusive=True
         )
@@ -73,14 +85,14 @@ class IMU:
         self.last_mag = None
         self.last_q = None
 
-    def close(self):
+    def close(self) -> None:
         """
         Close IMU connection and stop background monitoring thread..
         """
         self.should_exit = True
         self.rxthread.join()
 
-    def _safe_read(self, size):
+    def _safe_read(self, size: int) -> bytearray:
         buf = bytearray()
         remaining = size
         while (remaining > 0) and not self.should_exit:
@@ -89,37 +101,41 @@ class IMU:
             remaining -= len(chunk)
         return buf
 
-    def subscribe(self, callback, cls=None):
+    def subscribe(
+        self,
+        callback: Callable[[ReceiveMessage], None],
+        cls: Type[ReceiveMessage] = None,
+    ) -> None:
         """
         Subscribe to update messages from the IMU.
         """
         self.subscribers[cls].append(callback)
 
-    def _handle_message(self, msg):
+    def _handle_message(self, msg: ReceiveMessage) -> None:
         log.debug("message: %s", msg)
         for cb in self.subscribers[msg.__class__]:
             cb(msg)
         for cb in self.subscribers[None]:
             cb(msg)
-        if isinstance(msg, protocol.TimeMessage):
+        if isinstance(msg, TimeMessage):
             self.last_timestamp = msg.timestamp
-        elif isinstance(msg, protocol.AccelerationMessage):
+        elif isinstance(msg, AccelerationMessage):
             self.last_a = msg.a
             self.last_temp_celsius = msg.temp_celsius
-        elif isinstance(msg, protocol.AngularVelocityMessage):
+        elif isinstance(msg, AngularVelocityMessage):
             self.last_w = msg.w
             self.last_temp_celsius = msg.temp_celsius
-        elif isinstance(msg, protocol.AngleMessage):
+        elif isinstance(msg, AngleMessage):
             self.last_roll = msg.roll
             self.last_pitch = msg.pitch
             self.last_yaw = msg.yaw
-        elif isinstance(msg, protocol.MagneticMessage):
+        elif isinstance(msg, MagneticMessage):
             self.last_msg = msg.mag
             self.last_temp_celsius = msg.temp_celsius
-        elif isinstance(msg, protocol.QuaternionMessage):
+        elif isinstance(msg, QuaternionMessage):
             self.last_q = msg.q
 
-    def _rxloop(self):
+    def _rxloop(self) -> None:
         message_cls = None
         state = ReceiveState.idle
 
@@ -169,49 +185,49 @@ class IMU:
                     self._handle_message(msg)
                 state = ReceiveState.idle
 
-    def get_timestamp(self):
+    def get_timestamp(self) -> Optional[float]:
         """
         Get the last timestamp received from the device. If no timestamp
         messages have been received, will return `None`.
         """
         return self.last_timestamp
 
-    def get_acceleration(self):
+    def get_acceleration(self) -> Optional[Tuple[float, float, float]]:
         """
         Get the last acceleration vector received from the device. If no
         acceleration messages have been received, will return `None`.
         """
         return self.last_a
 
-    def get_angular_velocity(self):
+    def get_angular_velocity(self) -> Optional[Tuple[float, float, float]]:
         """
         Get the last angular velocity state received from the device. If no
         angular velocity messages have been received, will return `None`.
         """
         return self.last_w
 
-    def get_angle(self):
+    def get_angle(self) -> Optional[Tuple[float, float, float]]:
         """
         Get the last angle state received from the device. If no angle messages
         have been received, will return `None`.
         """
         return self.last_roll, self.last_pitch, self.last_yaw
 
-    def get_magnetic_vector(self):
+    def get_magnetic_vector(self) -> Optional[Tuple[float, float, float]]:
         """
         Get the last magnetic vector received from the device. If no
         magnetic messages have been received, will return `None`.
         """
         return self.last_mag
 
-    def get_quaternion(self):
+    def get_quaternion(self) -> Optional[Tuple[float, float, float, float]]:
         """
         Get the last quaternion received from the device. If no quaternion
         messages have been received, will return `None`.
         """
         return self.last_q
 
-    def save_configuration(self):
+    def save_configuration(self) -> None:
         """
         Save the currently running configuration to the device's nonvolatile
         memory.
@@ -223,7 +239,7 @@ class IMU:
             )
         )
 
-    def send_command(self, cmd):
+    def send_command(self, cmd: protocol.ConfigCommand) -> None:
         """
         Send a command instance to the device. This should generally not be
         used directly: instead, use higher-level configuration methods.
@@ -237,7 +253,7 @@ class IMU:
         # The IMU doesn't seem to like to receive commands too fast. :-(
         time.sleep(0.1)
 
-    def send_config_command(self, cmd):
+    def send_config_command(self, cmd: protocol.ConfigCommand):
         """
         Send a configuration command instance to the device, proceeded by a
         special configuration sequence. This should generally not be used
@@ -251,7 +267,7 @@ class IMU:
         )
         self.send_command(cmd)
 
-    def set_default_configuration(self):
+    def set_default_configuration(self) -> None:
         """
         Restore the device to factory default configuration.
         """
@@ -262,23 +278,35 @@ class IMU:
             )
         )
 
-    def set_calibration_mode(self, mode):
+    def set_calibration_mode(self, mode: CalibrationMode) -> None:
         """
         Set the current calibration mode.
         """
-        if mode == protocol.CalibrationMode.none:
+        if not isinstance(mode, CalibrationMode):
+            raise ValueError(
+                "Argument to set_calibration_mode() must be a "
+                "CalibrationMode instance, received: %r" % mode
+            )
+        if mode == CalibrationMode.none:
             pass
-        elif mode == protocol.CalibrationMode.gyro_accel:
+        elif mode == CalibrationMode.gyro_accel:
             pass
-        elif mode == protocol.CalibrationMode.magnetic:
+        elif mode == CalibrationMode.magnetic:
             pass
         else:
             raise ValueError("invalid calibration mode: %r" % mode)
 
-    def set_installation_direction(self, direction):
+    def set_installation_direction(
+        self, direction: InstallationDirection
+    ) -> None:
         """
         Set the current installation direction.
         """
+        if not isinstance(direction, InstallationDirection):
+            raise ValueError(
+                "Argument to set_installation_direction() must be a "
+                "InstallationDirection instance, received: %r" % direction
+            )
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.direction,
@@ -286,7 +314,7 @@ class IMU:
             )
         )
 
-    def toggle_sleep(self):
+    def toggle_sleep(self) -> None:
         """
         Toggle device sleep mode. If the device is currently active, it will go
         to sleep. If the device is current asleep, it will become active.
@@ -298,7 +326,7 @@ class IMU:
             )
         )
 
-    def set_algorithm_dof(self, n):
+    def set_algorithm_dof(self, n: int) -> None:
         """
         Set the currently active sensing algorithm in use on the device: either
         6-DoF or 9-DoF.
@@ -311,7 +339,7 @@ class IMU:
             )
         )
 
-    def set_gyro_automatic_calibration(self, enabled=True):
+    def set_gyro_automatic_calibration(self, enabled: bool = True) -> None:
         """
         Set the current gyro automatic calibration mode: either enabled or
         disabled.
@@ -323,7 +351,7 @@ class IMU:
             )
         )
 
-    def set_messages_enabled(self, classes):
+    def set_messages_enabled(self, classes: Set[Type[ReceiveMessage]]) -> None:
         """
         Set the output message types enabled on the device. Pass in a set of
         ReceiveMessage subclasses.
@@ -339,11 +367,11 @@ class IMU:
             )
         )
 
-    def set_update_rate(self, rate):
+    def set_update_rate(self, rate: Optional[Union[float, str]]) -> None:
         """
         Set the update rate emitted by the device.
         """
-        sel = {
+        choices = {
             0.2: protocol.ReturnRateSelect.rate_0_2hz,
             0.5: protocol.ReturnRateSelect.rate_0_5hz,
             1: protocol.ReturnRateSelect.rate_1hz,
@@ -357,7 +385,10 @@ class IMU:
             200: protocol.ReturnRateSelect.rate_200hz,
             "single": protocol.ReturnRateSelect.rate_single,
             None: protocol.ReturnRateSelect.rate_not_output,
-        }[rate]
+        }
+        if rate not in choices:
+            raise ValueError("Unsupported update rate: %r" % rate)
+        sel = choices[rate]
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.rate,
@@ -365,11 +396,14 @@ class IMU:
             )
         )
 
-    def set_baudrate(self, rate):
+    def set_baudrate(self, rate: int) -> None:
         """
         Set the serial baud rate used by the device.
         """
-        sel = getattr(protocol.BaudRateSelect, "baud_%d" % rate)
+        try:
+            sel = getattr(protocol.BaudRateSelect, "baud_%d" % rate)
+        except AttributeError:
+            raise ValueError("Unsupported baudrate: %r" % rate)
         self.send_config_command(
             protocol.ConfigCommand(
                 register=protocol.Register.baud,
@@ -377,23 +411,53 @@ class IMU:
             )
         )
 
-    def set_acceleration_bias(self, values):
+    def set_acceleration_bias(self, values: Tuple[int, int, int]) -> None:
         """
         Set the internal acceleration bias values.
         """
-        x, y, z = values
-        raise NotImplementedError
+        regs = (
+            protocol.Register.axoffset,
+            protocol.Register.ayoffset,
+            protocol.Register.azoffset,
+        )
+        for reg, el in zip(regs, values):
+            self.send_config_command(
+                protocol.ConfigCommand(
+                    register=reg,
+                    data=el,
+                )
+            )
 
-    def set_angular_velocity_bias(self, values):
+    def set_angular_velocity_bias(self, values: Tuple[int, int, int]) -> None:
         """
         Set the internal angular velocity bias values.
         """
-        x, y, z = values
-        raise NotImplementedError
+        regs = (
+            protocol.Register.gxoffset,
+            protocol.Register.gyoffset,
+            protocol.Register.gzoffset,
+        )
+        for reg, el in zip(regs, values):
+            self.send_config_command(
+                protocol.ConfigCommand(
+                    register=reg,
+                    data=el,
+                )
+            )
 
-    def set_magnetic_bias(self, values):
+    def set_magnetic_bias(self, values: Tuple[int, int, int]) -> None:
         """
         Set the internal magnetic bias values.
         """
-        x, y, z = values
-        raise NotImplementedError
+        regs = (
+            protocol.Register.hxoffset,
+            protocol.Register.hyoffset,
+            protocol.Register.hzoffset,
+        )
+        for reg, el in zip(regs, values):
+            self.send_config_command(
+                protocol.ConfigCommand(
+                    register=reg,
+                    data=el,
+                )
+            )

@@ -1,10 +1,16 @@
-.. witmotion documentation master file, created by
-   sphinx-quickstart on Sun Jul 18 13:50:44 2021.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+WitMotion IMU Python Interface
+==============================
 
-Welcome to witmotion's documentation!
-=====================================
+This library provides a Python interface to the WitMotion line of
+serial-interface IMU sensors. It is tested against the HWT905_, but is also
+expected to work for other products, including the HWT901B_.
+
+.. _HWT905: https://www.wit-motion.com/digital-inclinometer/witmotion-hwt905-rs232.html
+.. _HWT901B: https://www.wit-motion.com/digital-inclinometer/witmotion-hwt901b-rs232.html
+
+Both polling and callback-oriented APIs are available. At this time, the
+``witmotion`` package is only designed to work in a threaded environment, and
+does not offer ``async`` APIs.
 
 .. toctree::
    :maxdepth: 2
