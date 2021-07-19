@@ -190,14 +190,30 @@ receive_messages = {
 
 
 class CalibrationMode(Enum):
+    """
+    Available sensor calibration modes.
+    """
+
     none = 0
+    "No calibration mode enabled."
+
     gyro_accel = 1
+    "Enable gyroscope and accelerometer calibration."
+
     magnetic = 2
+    "Enable magnetic calibration."
 
 
 class InstallationDirection(Enum):
+    """
+    Available installation directions.
+    """
+
     horizontal = 0x00
+    "Device installed horizontally (default)."
+
     vertical = 0x01
+    "Device installed vertically."
 
 
 class ReturnRateSelect(Enum):
