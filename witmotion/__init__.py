@@ -130,7 +130,7 @@ class IMU:
             self.last_pitch = msg.pitch
             self.last_yaw = msg.yaw
         elif isinstance(msg, MagneticMessage):
-            self.last_msg = msg.mag
+            self.last_mag = msg.mag
             self.last_temp_celsius = msg.temp_celsius
         elif isinstance(msg, QuaternionMessage):
             self.last_q = msg.q
