@@ -105,18 +105,19 @@ class IMU:
         self,
         callback: Callable[[ReceiveMessage], None],
         cls: Type[ReceiveMessage] = None,
+        arg=None,
     ) -> None:
         """
         Subscribe to update messages from the IMU.
         """
-        self.subscribers[cls].append(callback)
+        self.subscribers[cls].append((callback, arg))
 
     def _handle_message(self, msg: ReceiveMessage) -> None:
         log.debug("message: %s", msg)
-        for cb in self.subscribers[msg.__class__]:
-            cb(msg)
-        for cb in self.subscribers[None]:
-            cb(msg)
+        for cb, arg in self.subscribers[msg.__class__]:
+            if arg: cb(msg, arg=arg) else: cb(msg)
+        for cb, arg in self.subscribers[None]:
+            if arg: cb(msg, arg=arg) else: cb(msg)
         if isinstance(msg, TimeMessage):
             self.last_timestamp = msg.timestamp
         elif isinstance(msg, AccelerationMessage):
