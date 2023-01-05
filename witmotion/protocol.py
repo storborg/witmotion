@@ -202,7 +202,7 @@ class LatLonMessage(ReceiveMessage):
 
     @classmethod
     def parse(cls, body):
-        lat_i, lon_i = struct.unpack("<ii", body)
+        lon_i, lat_i = struct.unpack("<ii", body)
 
         F = 1e7
 
