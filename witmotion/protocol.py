@@ -1,11 +1,12 @@
 import struct
 from datetime import datetime, timezone
 from enum import Enum
+import math
 
 G = 9.8
 
 
-class ReceiveMessage:
+class ReceiveMessage(object):
     payload_length = 8
 
     @classmethod
@@ -160,6 +161,89 @@ class MagneticMessage(ReceiveMessage):
         )
 
 
+class PressureMessage(ReceiveMessage):
+    code = 0x56
+
+    def __init__(self, pressure_pa, height_cm):
+        self.pressure_pa = pressure_pa
+        self.height_m = height_cm / 100.0
+
+    def __str__(self):
+        return "pressure message - pressure_pa:%d pressure_alt_m:%.2f" % (
+            self.pressure_pa,
+            self.height_m,
+        )
+
+    @classmethod
+    def parse(cls, body):
+        pressure_pa, height_cm = struct.unpack("<ii", body)
+        return cls(
+            pressure_pa=pressure_pa,
+            height_cm=height_cm
+        )
+
+
+class LatLonMessage(ReceiveMessage):
+    code = 0x57
+
+    def __init__(self, lat_d, lat_m, lon_d, lon_m):
+        self.lat_d = lat_d
+        self.lat_m = lat_m
+        self.lon_d = lon_d
+        self.lon_m = lon_m
+        self.lat = float(lat_d) + lat_m/60.0
+        self.lon = float(lon_d) + lon_m/60.0
+
+    def __str__(self):
+        return "lat/lon message - lat:%.5f lon:%.5f" % (
+            self.lat,
+            self.lon,
+        )
+
+    @classmethod
+    def parse(cls, body):
+        lon_i, lat_i = struct.unpack("<ii", body)
+
+        F = 1e7
+
+        lat_d = int(math.trunc(lat_i/F))
+        lat_m = (lat_i-lat_d*F)/100000
+
+        lon_d = int(math.trunc(lon_i/F))
+        lon_m = (lon_i-lon_d*F)/100000
+
+        return cls(
+            lat_d=lat_d,
+            lat_m=lat_m,
+            lon_d=lon_d,
+            lon_m=lon_m,
+        )
+
+class GroundSpeedMessage(ReceiveMessage):
+    code = 0x58
+
+    def __init__(self, height_m, yaw_d, s_kmh):
+        self.height_m = height_m
+        self.yaw_d = yaw_d
+        self.speed_kmh = s_kmh
+
+    def __str__(self):
+        return "ground speed message - height:%s yaw:%s speed:%s" % (
+            self.height_m,
+            self.yaw_d,
+            self.speed_kmh,
+        )
+
+    @classmethod
+    def parse(cls, body):
+        height, yaw, s = struct.unpack("<hhi", body)
+        return cls(
+            height_m=height/10.0,
+            yaw_d=yaw/10.0,
+            s_kmh=s/1000.0,
+        )
+
+
 class QuaternionMessage(ReceiveMessage):
     code = 0x59
 
@@ -176,6 +260,34 @@ class QuaternionMessage(ReceiveMessage):
         return cls(q=q)
 
 
+class GNSSAccuracyMessage(ReceiveMessage):
+    code = 0x5A
+
+    def __init__(self, n, loc, horiz, vert):
+        self.n = n
+        self.loc = loc
+        self.horiz = horiz
+        self.vert = vert
+
+    def __str__(self):
+        return "gnss accuracy message - n:%d loc:%s horiz:%s vert:%s" % (
+            self.n,
+            self.loc,
+            self.horiz,
+            self.vert,
+        )
+
+    @classmethod
+    def parse(cls, body):
+        n, l, h, v = struct.unpack("<HHHH", body)
+        return cls(
+            n=n,
+            loc=l/32768.0,
+            horiz=h/32768.0,
+            vert=v/32768.0,
+        )
+
+
 receive_messages = {
     cls.code: cls
     for cls in (
@@ -184,7 +296,11 @@ receive_messages = {
         AngularVelocityMessage,
         AngleMessage,
         MagneticMessage,
+        PressureMessage,
+        LatLonMessage,
+        GroundSpeedMessage,
         QuaternionMessage,
+        GNSSAccuracyMessage,
     )
 }
 
