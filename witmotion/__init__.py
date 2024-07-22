@@ -70,8 +70,6 @@ class IMU:
         # self.ser.write(b"\x00" * 5)
 
         self.should_exit = False
-        self.rxthread = Thread(target=self._rxloop)
-        self.rxthread.start()
         self.subscribers = defaultdict(list)
 
         # State we have received
@@ -84,6 +82,9 @@ class IMU:
         self.last_yaw = None
         self.last_mag = None
         self.last_q = None
+
+        self.rxthread = Thread(target=self._rxloop)
+        self.rxthread.start()
 
     def close(self) -> None:
         """
