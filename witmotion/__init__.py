@@ -91,6 +91,7 @@ class IMU:
         """
         self.should_exit = True
         self.rxthread.join()
+        self.ser.close()
 
     def _safe_read(self, size: int) -> bytearray:
         buf = bytearray()
